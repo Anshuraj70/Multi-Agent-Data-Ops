@@ -16,7 +16,7 @@ export default function TestInsertPage() {
 
     // try {
       await logAgentAction(testData);
-      redirect("/test");
+      redirect("/supabase-connection-test");
     // } catch (error) {
     //   console.error("Insert failed:", error);
     // }
