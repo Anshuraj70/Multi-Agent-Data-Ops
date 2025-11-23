@@ -2,7 +2,7 @@
 import SearchButton from "./UI/search-button";
 import { FormEvent, useState } from "react";
 
-export async function Home() {
+export default function Home() {
   const [prompt, setprompt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
