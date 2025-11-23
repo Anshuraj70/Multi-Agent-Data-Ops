@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPost, updatePost, logAgentAction } from "@/lib/supabase/queries";
+import { runResearcher } from "@/app/agents/researcher";
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,6 +19,8 @@ export async function POST(request: NextRequest) {
       run_id: runId,
       status: "processing",
     });
+
+    const researchResult = await runResearcher(prompt);
 
     const mockContent = `Reading your docs \n\n Looking for resources based on your PRD \n\n ${prompt.substring(
       0,
