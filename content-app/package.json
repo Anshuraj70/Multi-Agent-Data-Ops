@@ -9,13 +9,18 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/xai": "^2.0.38",
+    "@google/genai": "^1.30.0",
     "@openai/agents": "^0.3.3",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.81.1",
+    "ai": "^5.0.102",
     "next": "16.0.2",
     "openai": "^6.9.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

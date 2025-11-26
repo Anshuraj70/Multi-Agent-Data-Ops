@@ -1,5 +1,6 @@
-import { Agent, run } from "@openai/agents";
+// import { Agent, run } from "@openai/agents";
 // import { webSearchTool } from '@openai/agents/tools'
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 
 export interface ResearchResult {
   topics: string[];
@@ -11,10 +12,36 @@ export interface ResearchResult {
 export async function runResearcher(prdText: string): Promise<ResearchResult> {
   try {
     // Create the researcher agent
-    const agent = new Agent({
-      name: "Researcher",
-      model: "gpt-4o", // or "gpt-4o-mini" for cheaper
-      instructions: `You are a research assistant for product development.
+    //     const agent = new Agent({
+    //       name: "Researcher",
+    //       model: "gpt-4o-mini", // or "gpt-4o" for cheaper
+    //       instructions: `You are a research assistant for product development.
+
+    // Your task:
+    // 1. Read the PRD (Product Requirements Document)
+    // 2. Identify 3-5 key topics that need research
+    // 3. Use web search to find relevant, current information
+    // 4. Compile findings with sources
+
+    // Output format (JSON):
+    // {
+    //   "topics": ["topic1", "topic2", "topic3"],
+    //   "findings": [
+    //     "Finding 1 with context...",
+    //     "Finding 2 with context...",
+    //     "Finding 3 with context..."
+    //   ],
+    //   "sources": ["url1", "url2", "url3"]
+    // }
+
+    // Return ONLY valid JSON.`,
+    //       //   tools: [webSearchTool()], // Enable web search capability
+    //     });
+const ai = new GoogleGenAI({});
+
+    const result = await ai.models.generateContent({
+    model: "gemini-3-pro-preview",
+    contents: `You are a research assistant for product development.
 
 Your task:
 1. Read the PRD (Product Requirements Document)
@@ -34,21 +61,21 @@ Output format (JSON):
 }
 
 Return ONLY valid JSON.`,
-      //   tools: [webSearchTool()], // Enable web search capability
-    });
+    config: {
+      thinkingConfig: {
+        thinkingLevel: ThinkingLevel.LOW,
+      }
+    },
+  });
 
-    console.log(" Researcher agent starting...");
 
-    // Run the agent with the PRD text
-    const result = await run(agent, prdText);
-
-    if (!result.finalOutput) {
+    if (!result.text || result.text.trim().length === 0) {
       throw new Error("Agent returned no final output");
     }
 
-    const output = result.finalOutput;
+    const output = result.text;
 
-    console.log("✅ Researcher completed");
+    console.log(" Researcher completed");
     console.log("Raw output:", output);
 
     // Parse the structured output
