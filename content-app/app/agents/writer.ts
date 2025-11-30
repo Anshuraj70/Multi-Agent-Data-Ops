@@ -1,36 +1,65 @@
-import { xai } from '@ai-sdk/xai';
-import { generateText } from 'ai';
-import { ResearchResult } from './researcher';
+import { xai } from "@ai-sdk/xai";
+import { generateText } from "ai";
+import { ResearchResult } from "./researcher";
+import { Console } from "console";
+import { WriterResult } from "@/app/types";
 
-export interface WriterResult {
-  draft: string
-  wordCount: number
-  sectionscount: number
-  rawOutput: string
+
+
+export async function correctIssuesInDraft(oldDraft: string, issues: string[]){
+
+  try{
+    console.log("Correcting issues in draft ...");
+    const issuesList = issues.map((issue, index) => `${index + 1}. ${issue}`).join("\n");
+    const result = await generateText({
+      model: xai("grok-beta"),
+      system: `You are an expert blog writer for a technical content team.`,
+      prompt: `You are given a blog draft that has some factual issues. 
+      Blog: ${oldDraft}
+      Issues found:
+      ${issuesList}
+      Your task is to correct those issues in the draft without changing the overall tone and style of the writing.`
+    });
+    const correctedDraft =  result.text;
+    const wordcount = correctedDraft.trim().split(/\s+/).length;
+    const sectionscount = (correctedDraft.match(/^#{1,3}\s+/gm) || []).length;
+    console.log("Draft correction completed.");
+
+
+    return {correctedDraft, wordcount, sectionscount, rawoutput: correctedDraft};
+  }catch(err){
+    console.error(`Error found in correctIssuesInDraft: ${err}`);
+    throw err;}
 }
 
 
-export async function writeNotesAgent( prompt : String, keywords:  ResearchResult){
+export async function writeNotesAgent(
+  prompt: String,
+  keywords: ResearchResult
+) {
+  try {
+    console.log(`Writer agent starting .....`);
+    console.log(`topics to cover: ${keywords.topics.join(",")}`);
+    console.log(`Findings to incorporate: ${keywords.findings.join(",")}`);
 
-
-    try {
-        console.log(`Writer agent starting .....`);
-        console.log (`topics to cover: ${keywords.topics.join(',')}`);
-        console.log(`Findings to incorporate: ${keywords.findings.join(',')}`);
-
-            const researchSummary = `
+    const researchSummary = `
 **Key Topics:**
-${keywords.topics.map((t, i) => `${i + 1}. ${t}`).join('\n')}
+${keywords.topics.map((t, i) => `${i + 1}. ${t}`).join("\n")}
 
 **Research Findings:**
-${keywords.findings.map((f, i) => `${i + 1}. ${f}`).join('\n\n')}
+${keywords.findings.map((f, i) => `${i + 1}. ${f}`).join("\n\n")}
 
-${keywords.sources.length > 0 ? `**Sources:**\n${keywords.sources.map((s, i) => `${i + 1}. ${s}`).join('\n')}` : ''}
-    `.trim()
-    
+${
+  keywords.sources.length > 0
+    ? `**Sources:**\n${keywords.sources
+        .map((s, i) => `${i + 1}. ${s}`)
+        .join("\n")}`
+    : ""
+}
+    `.trim();
 
     const result = await generateText({
-      model: xai('grok-beta'),
+      model: xai("grok-beta"),
       system: `You are an expert blog writer for a technical content team. 
 
 Your task:
@@ -42,7 +71,7 @@ Your task:
 6. Aim for 800-1200 words
 
 The blog should educate readers about the product while being engaging and well-researched.`,
-      
+
       prompt: `Write a detailed blog post for this product:
 
 # Product Requirements Document (PRD)
@@ -63,22 +92,25 @@ Write a complete blog post that:
 - Uses proper markdown formatting
 
 Begin writing now:`,
-    })
-
+    });
+    if (!result.text || result.text.trim().length === 0) {
+      throw new Error("Writer Agent returned no final output");
+    }
     const draft = result.text;
     const wordcount = draft.trim().split(/\s+/).length;
     const sectionscount = (draft.match(/^#{1,3}\s+/gm) || []).length;
+
+    let parsed : WriterResult;
+    parsed = {
+      draft: draft,
+      wordCount: wordcount,
+      sectionsCount: sectionscount,
+      rawOutput: draft
+    };
+    return parsed;
     
-    return {
-        draft, 
-        wordcount,
-        sectionscount, 
-        rawoutput: draft
-    }
-    } catch (error) {
-        console.error("Error in Writer agent:", error);
-        throw error;
-    }
-} 
-
-
+  } catch (error) {
+    console.error("Error in Writer agent:", error);
+    throw error;
+  }
+}

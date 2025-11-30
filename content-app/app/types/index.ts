@@ -10,6 +10,7 @@ export interface WriterResult {
   draft: string
   wordCount: number
   rawOutput: string
+  sectionsCount: number
 }
 
 export interface FactCheckResult {
