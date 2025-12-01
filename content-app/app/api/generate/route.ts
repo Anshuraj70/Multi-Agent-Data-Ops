@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createPost, updatePost, logAgentAction } from "@/lib/supabase/queries";
 import { writerlogs, factCheckerlogAgentAction, stylepolisherlog } from "./logs";
 import { runResearcher } from "@/app/agents/researcher";
-import { writeNotesAgent, correctIssuesInDraft } from "@/app/agents/writer";
+import { runWriter, correctIssuesInDraft } from "@/app/agents/writer";
 import { factCheckerAgent } from "@/app/agents/factChecker";
 import { stylePolisherAgent } from "@/app/agents/stylePolisher";
 import { string } from "zod/v4";
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     console.log("Researcher logs are saved.");
 
     console.log("Starting Writer agent .....");
-    const writeresult = await writeNotesAgent(prompt, researchResult);
+    const writeresult = await runWriter(prompt, researchResult);
 
     console.log(`Writer completed.`);
     console.log(`Word Count: ${writeresult.wordCount}`);
@@ -82,12 +82,12 @@ export async function POST(request: NextRequest) {
       );
       const reviewport = await factCheckerAgent(
         prompt,
-        rewrite.correctedDraft,
+        rewrite.rewrittenDraft,
         researchResult.findings
       );
       if (JSON.stringify(reviewport).includes("Passed: True")) {
         console.log("Revised draft passed fact-check.");
-        writeresult.draft = rewrite.correctedDraft;
+        writeresult.draft = rewrite.rewrittenDraft;
         writeresult.wordCount = rewrite.wordcount;
         writeresult.sectionsCount = rewrite.sectionscount;
       }

@@ -1,75 +1,78 @@
 import { PolishedResult } from "../types";
-import { xai } from "@ai-sdk/xai";
-import { generateText } from "ai";
+import { grok_model } from "@/lib/langchain";
+import { PromptTemplate } from "@langchain/core/prompts";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { RunnableSequence } from "@langchain/core/runnables";
 
+
+const stylePolisherPrompt = PromptTemplate.fromTemplate(`
+You are an expert technical content editor and writing coach.
+
+# Your Tasks:
+1. Review the blog draft for style, tone, and clarity
+2. Make improvements to enhance readability and engagement
+3. Explain technical terms clearly before using them
+4. Add examples for important technical concepts
+5. Ensure proper section structure with clear headings
+6. Add a comprehensive summary at the end
+
+# Blog Draft to Polish:
+{draftContent}
+
+# Original Requirements (Context):
+{prd}
+
+# Your Goal:
+Transform this draft into a polished, professional blog post that:
+- Maintains technical accuracy
+- Is accessible to the target audience
+- Has clear structure and flow
+- Includes helpful examples
+- Ends with a strong summary
+
+Return ONLY the polished blog text in markdown format. Do not include JSON or metadata.
+`)
+
+const outputParser = new StringOutputParser()
+
+const stylePolisherChain = RunnableSequence.from([
+  stylePolisherPrompt,
+  grok_model,
+  outputParser,
+])
 
 export async function stylePolisherAgent(
   draftContent: string,
-  prompt: string
-) {
+  prd: string
+): Promise<PolishedResult> {
   try {
-    console.log("Style Polisher processing ...");
+    console.log("Style Polisher processing...");
+    console.log(`Draft length: ${draftContent.length} chars`);
 
-    const result = await generateText({
-        model: xai("grok-beta"),
-        system: `You are an expert author in technical writing of a product.
-        Your task: 
-        1. Review the blog draft for style, tone, and clarity.
-        2. Make improvements to enhance readability and engagement.
-        3. Ensure you don't leave behind he technical terminologies used in the draft. Before speaking about it 
-        give a clear explanation of the term in simple words. Explain its need and role. 
-        4. End with an example for every technical and important term used in the blog.
-        5. Whole product should always be divided into multiple sections with proper headings.
-        6. Summarize the content at the end of the blog.
-        The blog should be insightful and clear about is needs.`,
-        prompt: `Here is the blog draft:
-        ${draftContent}
-        Review the draft and polish the style, tone, and clarity. Make improvements as needed.
-        # The actual task:
-        ${prompt}
-        Return JSON with 'content' (polished text) and 'improvements' (list of changes made).
-        --------------`,
+    const polishedContent = await stylePolisherChain.invoke({
+      draftContent: draftContent,
+      prd: prd,
     });
-    if (!result.text || result.text.trim().length === 0) {
-      throw new Error("Style Polisher Agent returned no final output");
+    
+    if (!polishedContent || polishedContent.trim().length === 0) {
+      throw new Error("Style Polisher returned no output");
     }
-    const polishedDraft = result.text;
 
-    console.log("Style Polisher completed.");
+    const wordCount = polishedContent.trim().split(/\s+/).length;
+    const sectionsCount = (polishedContent.match(/^#{1,3}\s+/gm) || []).length;
 
-    let parsed: PolishedResult;
+    console.log("Style Polisher completed");
+    console.log(`Final word count: ${wordCount}`);
+    console.log(`Sections: ${sectionsCount}`);
 
-    try {
-      // Try to parse JSON response
-      const jsonMatch = result.text.match(/\{[\s\S]*\}/);
-      
-      if (jsonMatch) {
-        const jsonData = JSON.parse(jsonMatch[0]);
-        parsed = {
-          content: jsonData.content || result.text,
-          improvements: jsonData.improvements || ["General style improvements"],
-          rawOutput: result.text,
-        };
-      } else {
-        // Fallback: treat entire response as polished content
-        parsed = {
-          content: result.text,
-          improvements: ["Content polished (no specific improvements tracked)"],
-          rawOutput: result.text,
-        };
-      }
-    }catch (err) {
-      console.error(`Error parsing in style polisher agent: ${err}`);
-      parsed = {
-        content: result.text,
-        improvements: ["Content polished (parsing failed)"],
-        rawOutput: result.text, 
-      };
-    }
-    return parsed;
+    return {
+      content: polishedContent,
+      improvements: ["Style polished and enhanced for readability"],
+      rawOutput: polishedContent,
+    };
 
-}catch (err) {
-    console.error(`Error found in Style Polisher: ${err}`);
-    throw err;
+  } catch (error) {
+    console.error(" Style Polisher error:", error);
+    throw error;
   }
 }

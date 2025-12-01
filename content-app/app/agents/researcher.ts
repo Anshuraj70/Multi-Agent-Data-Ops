@@ -1,29 +1,28 @@
-import { xai } from '@ai-sdk/xai'
-import { generateText } from 'ai'
+import { grok_model } from '@/lib/langchain'
+import { PromptTemplate } from '@langchain/core/prompts'
+import { JsonOutputParser } from '@langchain/core/output_parsers'
+import { RunnableSequence } from '@langchain/core/runnables'
+import { z } from 'zod'
+import { ResearchResult } from '../types'
 
-export interface ResearchResult {
-  topics: string[]
-  findings: string[]
-  sources: string[]
-  rawOutput: string
-}
+const ResearchSchema = z.object({
+  topics: z.array(z.string()).describe('3-5 key research topics'),
+  findings: z.array(z.string()).describe('Research findings for each topic'),
+  sources: z.array(z.string()).describe('Source URLs or references'),
+})
 
-export async function runResearcher(prdText: string): Promise<ResearchResult> {
-  try {
-    console.log(' Researcher agent starting .....')
 
-    const result = await generateText({
-      model: xai('grok-beta'),
-      system: `You are a professional research assistant for product and technical content teams.
+const researchPrompt = PromptTemplate.fromTemplate(`
+You are a professional research assistant for product and technical content teams.
 
 Your job:
 1. Read the PRD (Product Requirements Document)
-2. Identify 3–5 key topics that need research
+2. Identify 3-5 key topics that need research
 3. Simulate web-style research by generating realistic, up-to-date findings
 4. Provide realistic-looking source URLs
 
 You MUST return ONLY valid JSON in the following format:
-{
+{{
   "topics": ["topic1", "topic2", "topic3"],
   "findings": [
     "Finding 1 with context.",
@@ -31,60 +30,50 @@ You MUST return ONLY valid JSON in the following format:
     "Finding 3 with context."
   ],
   "sources": ["url1", "url2", "url3"]
-}`,
+}}
 
-      prompt: `Here is the PRD document:
+Here is the PRD document:
+{prd}
 
-${prdText}
+Generate the research results now. Output only JSON.
+`)
 
-Generate the research results now. Output only JSON.`,
-    })
 
-    if (!result.text || result.text.trim().length === 0) {
-      throw new Error("Agent returned no final output")
+// Create the output parser
+const outputParser = new JsonOutputParser<z.infer<typeof ResearchSchema>>()
+
+// Create the chain
+const researchChain = RunnableSequence.from([
+  researchPrompt,
+  grok_model,
+  outputParser,
+])
+
+export async function runResearcher(prompt: string): Promise<ResearchResult>{
+  try{
+    console.log('🔍 Researcher agent starting (LangChain)...')
+
+
+    const result = await researchChain.invoke({ prd: prompt })
+
+    console.log('✅ Researcher completed')
+    console.log(`   - Topics: ${result.topics.length}`)
+    console.log(`   - Findings: ${result.findings.length}`)
+    console.log(`   - Sources: ${result.sources.length}`)
+
+    return {
+      topics: result.topics || [],
+      findings: result.findings || [],
+      sources: result.sources || [],
+      rawOutput: JSON.stringify(result, null, 2),
     }
 
-    const output = result.text
+  }catch(error){
+    console.error('Error in Research agent: ', error);
 
-    console.log(" Researcher completed")
-    console.log("Raw output:", output)
-
-    let parsed: ResearchResult
-
-    try {
-      const jsonMatch = output.match(/\{[\s\S]*\}/)
-
-      if (jsonMatch) {
-        const jsonData = JSON.parse(jsonMatch[0])
-
-        parsed = {
-          topics: jsonData.topics || [],
-          findings: jsonData.findings || [],
-          sources: jsonData.sources || [],
-          rawOutput: output
-        }
-      } else {
-        parsed = {
-          topics: ["General research"],
-          findings: [output],
-          sources: [],
-          rawOutput: output
-        }
-      }
-    } catch (parseError) {
-      console.error(" Failed to parse JSON, using raw output")
-
-      parsed = {
-        topics: ["Research completed"],
-        findings: [output],
-        sources: [],
-        rawOutput: output
-      }
+    if (error instanceof Error){
+      console.error(`Researcher agent failed: ${error.message}`);
     }
-
-    return parsed
-  } catch (error) {
-    console.error(" Researcher agent error:", error)
-    throw error
+    throw error;
   }
 }

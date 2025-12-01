@@ -1,84 +1,74 @@
-import { xai } from "@ai-sdk/xai";
-import { generateText } from "ai";
+import { grok_model } from "@/lib/langchain";
+import { PromptTemplate } from "@langchain/core/prompts";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { RunnableSequence } from "@langchain/core/runnables";
+import { JsonOutputParser } from '@langchain/core/output_parsers'
 import { FactCheckResult } from "../types";
 
-// export interface FactCheckResult {
-//   passed: boolean;
-//   issues: string[];
-//   feedback?: string;
-//   rawOutput: string;
-// }
+const factCheckerprompt = PromptTemplate.fromTemplate(`
+You are an expert peer reviewer for a technical content team.
+
+# Your Tasks:
+1. Review the blog draft for factual accuracy against research findings
+2. Identify inaccuracies, inconsistencies, or unsupported claims
+3. Provide constructive feedback
+4. Summarize findings clearly
+
+# Blog Draft:
+{draftContent}
+
+# Research Findings (Source Material):
+{researchFindings}
+
+# Original PRD Context:
+{prd}
+
+Analyze the draft carefully and return ONLY JSON in this format:
+{{
+  "passed": true/false,
+  "issues": ["issue1", "issue2"],
+  "feedback": "constructive feedback here"
+}}
+`);
+
+
+const outputParser = new JsonOutputParser<FactCheckResult>();
+
+const factCheckerchain = RunnableSequence.from([
+  factCheckerprompt,
+  grok_model,
+  outputParser,
+]);
 
 export async function factCheckerAgent(
   prompt: string,
   draftContent: string,
   researchFindings: string[]
-) {
+): Promise<FactCheckResult> {
   try {
     console.log("Fact checker processing ...");
+    const findingsFormatted = researchFindings
+      .map((f, i) => `${i + 1}. ${f}`)
+      .join('\n\n');
 
-    const unprocessesdResult = `Go through this blog draft throughly. ${draftContent} 
-        These are list of sources used to write this blog. ${researchFindings.join(
-          ", "
-        )}`;
+    const result = await factCheckerchain.invoke({
+      draftContent: draftContent,
+      researchFindings: findingsFormatted,
+      prd: prompt  // Original PRD for context
+    })
+     console.log("✅ Fact checker completed");
+    console.log(`   - Passed: ${result.passed}`);
+    console.log(`   - Issues found: ${result.issues?.length || 0}`);
 
-    const result = await generateText({
-      model: xai("grok-beta"),
-      system: `You are an expert peer reviewer for a technical content team.
-            Your tasks: 
-            1. Reveiw the blog draft for factual accuracy against the research findings provided.
-            2. Identify any factual inaccuracies, inconsistencies, or unsupported claims.
-            3. Provide constructive feedback on how to improve the factual accuracy of the content.
-            4. Summarize your findings in a clear and concise manner.`,
-      prompt: `Review the blog draft and check the correctness of the content altogether.
-            # Here is the blog draft: 
-            ${unprocessesdResult}
-            # The actual task: 
-            ${prompt}
-            --------------
-            The output should be in the following Json format: 
-            1. passed: boolean - true if the draft passes fact-check, false otherwise
-            2. issues: string[] - list of identified factual issues or else empty array
-            3. feedback: string - constructive feedback to improve factual accuracy
-            4. rawOutput: string - the complete raw output from the agent`,
-    });
-
-    if (!result.text || result.text.trim().length === 0) {
-      throw new Error("Fact Checker Agent returned no final output");
+    return {
+      passed: result.passed || false,
+      issues: result.issues || [],
+      feedback: result.feedback || "",
+      rawOutput: JSON.stringify(result, null, 2),
     }
 
-    const review = result.text;
-
-    let parsed: FactCheckResult;
-
-    try {
-      const jsonMatch = review.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const jsonData = JSON.parse(jsonMatch[0]);
-        console.log("Fact checker completed.");
-        parsed = {
-          passed: jsonData.passed || false,
-          issues: jsonData.issues || [],
-          feedback: jsonData.feedback || "",
-          rawOutput: review,
-        };
-
-        return parsed;
-      } else {
-        parsed = {
-          passed: false,
-          issues: [],
-          feedback: "Failed to parse fact-checker output",
-          rawOutput: review,
-        };
-        return parsed;
-      }
-    } catch (err) {
-      console.error(`Error found in factCheckerAgent parsing: ${err}`);
-      throw err;
-    }
-  } catch (err) {
-    console.error(`Error found in factCheckerAgent: ${err}`);
-    throw err;
+  } catch (error) {
+    console.error("❌ Fact checker error:", error);
+    throw error;
   }
 }

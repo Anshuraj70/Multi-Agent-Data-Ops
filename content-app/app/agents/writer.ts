@@ -1,66 +1,11 @@
-import { xai } from "@ai-sdk/xai";
-import { generateText } from "ai";
-import { ResearchResult } from "./researcher";
-import { Console } from "console";
-import { WriterResult } from "@/app/types";
+import { grok_model } from "@/lib/langchain";
+import { PromptTemplate } from "@langchain/core/prompts";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { RunnableSequence } from "@langchain/core/runnables";
+import { ResearchResult, WriterResult } from "../types";
 
-
-
-export async function correctIssuesInDraft(oldDraft: string, issues: string[]){
-
-  try{
-    console.log("Correcting issues in draft ...");
-    const issuesList = issues.map((issue, index) => `${index + 1}. ${issue}`).join("\n");
-    const result = await generateText({
-      model: xai("grok-beta"),
-      system: `You are an expert blog writer for a technical content team.`,
-      prompt: `You are given a blog draft that has some factual issues. 
-      Blog: ${oldDraft}
-      Issues found:
-      ${issuesList}
-      Your task is to correct those issues in the draft without changing the overall tone and style of the writing.`
-    });
-    const correctedDraft =  result.text;
-    const wordcount = correctedDraft.trim().split(/\s+/).length;
-    const sectionscount = (correctedDraft.match(/^#{1,3}\s+/gm) || []).length;
-    console.log("Draft correction completed.");
-
-
-    return {correctedDraft, wordcount, sectionscount, rawoutput: correctedDraft};
-  }catch(err){
-    console.error(`Error found in correctIssuesInDraft: ${err}`);
-    throw err;}
-}
-
-
-export async function writeNotesAgent(
-  prompt: String,
-  keywords: ResearchResult
-) {
-  try {
-    console.log(`Writer agent starting .....`);
-    console.log(`topics to cover: ${keywords.topics.join(",")}`);
-    console.log(`Findings to incorporate: ${keywords.findings.join(",")}`);
-
-    const researchSummary = `
-**Key Topics:**
-${keywords.topics.map((t, i) => `${i + 1}. ${t}`).join("\n")}
-
-**Research Findings:**
-${keywords.findings.map((f, i) => `${i + 1}. ${f}`).join("\n\n")}
-
-${
-  keywords.sources.length > 0
-    ? `**Sources:**\n${keywords.sources
-        .map((s, i) => `${i + 1}. ${s}`)
-        .join("\n")}`
-    : ""
-}
-    `.trim();
-
-    const result = await generateText({
-      model: xai("grok-beta"),
-      system: `You are an expert blog writer for a technical content team. 
+const writerPrompt = PromptTemplate.fromTemplate(`
+You are an expert blog writer for a technical content team.
 
 Your task:
 1. Write a comprehensive, engaging blog post based on the PRD and research
@@ -70,17 +15,22 @@ Your task:
 5. Write in a professional yet accessible tone
 6. Aim for 800-1200 words
 
-The blog should educate readers about the product while being engaging and well-researched.`,
-
-      prompt: `Write a detailed blog post for this product:
+The blog should educate readers about the product while being engaging and well-researched.
 
 # Product Requirements Document (PRD)
-${prompt}
+{prd}
 
 ---
 
 # Research Materials
-${researchSummary}
+
+**Key Topics:**
+{topics}
+
+**Research Findings:**
+{findings}
+
+{sources}
 
 ---
 
@@ -91,26 +41,126 @@ Write a complete blog post that:
 - Ends with a compelling conclusion
 - Uses proper markdown formatting
 
-Begin writing now:`,
-    });
-    if (!result.text || result.text.trim().length === 0) {
-      throw new Error("Writer Agent returned no final output");
-    }
-    const draft = result.text;
-    const wordcount = draft.trim().split(/\s+/).length;
-    const sectionscount = (draft.match(/^#{1,3}\s+/gm) || []).length;
+Begin writing now:
+`);
 
-    let parsed : WriterResult;
-    parsed = {
-      draft: draft,
-      wordCount: wordcount,
-      sectionsCount: sectionscount,
-      rawOutput: draft
+const editorprompt = PromptTemplate.fromTemplate(`
+  You are an expert technical editor for a content team.
+
+You've been given a blog draft with factual issues identified by fact-checkers.
+
+# Original Blog Draft:
+{oldDraft}
+
+# Issues to Correct:
+{issuesList}
+
+# Your Task:
+1. Carefully read each issue
+2. Correct the factual errors in the draft
+3. Maintain the same writing style and tone
+4. Keep the overall structure intact
+5. Ensure all corrections are accurate
+
+Return the fully corrected blog draft (no JSON, just the corrected text):
+`);
+
+const outputParser = new StringOutputParser();
+
+const editorchain = RunnableSequence.from([
+  editorprompt,
+  grok_model,
+  outputParser,
+]);
+
+const writerChain = RunnableSequence.from([
+  writerPrompt,
+  grok_model,
+  outputParser,
+]);
+
+export async function correctIssuesInDraft(
+  oldDraft: string,
+  issuesList: string[]
+): Promise<{
+  rewrittenDraft: string;
+  wordcount: number;
+  sectionscount: number;
+  rawOutput: string;
+}> {
+  try {
+    console.log(" Writer (editor) correcting issues...");
+    const draft = await editorchain.invoke({
+      oldDraft: oldDraft,
+      issuesList: issuesList,
+    });
+
+    const wordCount = draft.trim().split(/\s+/).length;
+    const sectionsCount = (draft.match(/^#{1,3}\s+/gm) || []).length;
+
+    console.log(" Writer completed");
+    console.log(`   - Words: ${wordCount}`);
+    console.log(`   - Sections: ${sectionsCount}`);
+
+    return {
+      rewrittenDraft: draft,
+      wordcount: wordCount,
+      sectionscount: sectionsCount,
+      rawOutput: draft,
     };
-    return parsed;
-    
   } catch (error) {
-    console.error("Error in Writer agent:", error);
+    console.error(" Writer (editor) error:", error);
+    throw error;
+  }
+}
+
+export async function runWriter(
+  prdText: string,
+  research: ResearchResult
+): Promise<WriterResult> {
+  try {
+    console.log("Writer agent starting (LangChain)...");
+    console.log(`Topics to cover: ${research.topics.length}`);
+    console.log(`Findings to incorporate: ${research.findings.length}`);
+
+    // Format research for the prompt
+    const topicsFormatted = research.topics
+      .map((t, i) => `${i + 1}. ${t}`)
+      .join("\n");
+
+    const findingsFormatted = research.findings
+      .map((f, i) => `${i + 1}. ${f}`)
+      .join("\n\n");
+
+    const sourcesFormatted =
+      research.sources.length > 0
+        ? `**Sources:**\n${research.sources
+            .map((s, i) => `${i + 1}. ${s}`)
+            .join("\n")}`
+        : "";
+
+    const draft = await writerChain.invoke({
+      prd: prdText,
+      topics: topicsFormatted,
+      findings: findingsFormatted,
+      sources: sourcesFormatted,
+    });
+
+    const wordCount = draft.trim().split(/\s+/).length;
+    const sectionsCount = (draft.match(/^#{1,3}\s+/gm) || []).length;
+
+    console.log(" Writer completed");
+    console.log(`   - Words: ${wordCount}`);
+    console.log(`   - Sections: ${sectionsCount}`);
+
+    return {
+      draft,
+      wordCount,
+      sectionsCount,
+      rawOutput: draft,
+    };
+  } catch (error) {
+    console.error(" Writer agent error:", error);
     throw error;
   }
 }
