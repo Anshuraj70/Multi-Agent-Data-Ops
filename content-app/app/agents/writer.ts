@@ -1,7 +1,6 @@
-import { grok_model } from "@/lib/langchain";
+import { createGeminiModel } from "@/lib/langchain";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
-import { RunnableSequence } from "@langchain/core/runnables";
 import { ResearchResult, WriterResult } from "../types";
 
 const writerPrompt = PromptTemplate.fromTemplate(`
@@ -65,19 +64,15 @@ You've been given a blog draft with factual issues identified by fact-checkers.
 Return the fully corrected blog draft (no JSON, just the corrected text):
 `);
 
-const outputParser = new StringOutputParser();
+const model = createGeminiModel();
 
-const editorchain = RunnableSequence.from([
-  editorprompt,
-  grok_model,
-  outputParser,
-]);
+const editorchain = editorprompt
+  .pipe(model)
+  .pipe(new StringOutputParser())
 
-const writerChain = RunnableSequence.from([
-  writerPrompt,
-  grok_model,
-  outputParser,
-]);
+const writerChain = writerPrompt
+  .pipe(model)
+  .pipe(new StringOutputParser())
 
 export async function correctIssuesInDraft(
   oldDraft: string,

@@ -1,7 +1,6 @@
-import { grok_model } from '@/lib/langchain'
+import {  gemini_model, createGeminiModel } from '@/lib/langchain'
 import { PromptTemplate } from '@langchain/core/prompts'
-import { JsonOutputParser } from '@langchain/core/output_parsers'
-import { RunnableSequence } from '@langchain/core/runnables'
+import { JsonOutputParser, StringOutputParser } from '@langchain/core/output_parsers'
 import { z } from 'zod'
 import { ResearchResult } from '../types'
 
@@ -39,15 +38,20 @@ Generate the research results now. Output only JSON.
 `)
 
 
-// Create the output parser
-const outputParser = new JsonOutputParser<z.infer<typeof ResearchSchema>>()
+const model = createGeminiModel()
 
 // Create the chain
-const researchChain = RunnableSequence.from([
-  researchPrompt,
-  grok_model,
-  outputParser,
-])
+// const researchChain = RunnableSequence.from([
+//   researchPrompt,
+//   model,
+//   stringParser,
+//   outputParser,
+// ])
+const researchChain = researchPrompt
+  .pipe(gemini_model)
+  .pipe(new StringOutputParser())
+  .pipe(new JsonOutputParser<{ topics: string[]; findings: string[]; sources: string[] }>())
+
 
 export async function runResearcher(prompt: string): Promise<ResearchResult>{
   try{

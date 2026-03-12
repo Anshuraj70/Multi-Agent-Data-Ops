@@ -1,27 +1,20 @@
-import { ChatOpenAI } from '@langchain/openai';
+import { ChatGoogle } from "@langchain/google";
 
-export const grok_model = new ChatOpenAI({
-    modelName: 'grok-beta',
-    openAIApiKey: process.env.XAI_API_KEY,
-    configuration:{
-        baseURL: process.env.XAI_API_BASE_URL || "https://api.x.ai/v1",
-    },
-    temperature: 0.7,
-    maxTokens: 4000,
-});
+export const gemini_model = new ChatGoogle({
+  model: "gemini-2.5-flash",
+  apiKey: process.env.GEMINI_API_KEY,
+  temperature: 0.7,
+  maxOutputTokens: 4000,
+})
 
-export function createGrokModel(config?: {
+export function createGeminiModel(config?: {
   temperature?: number
   maxTokens?: number
-  modelName?: string
 }) {
-  return new ChatOpenAI({
-    modelName: config?.modelName || 'grok-beta',
-    openAIApiKey: process.env.XAI_API_KEY,
-    configuration: {
-      baseURL: process.env.XAI_BASE_URL || 'https://api.x.ai/v1',
-    },
+  return new ChatGoogle({
+    model: "gemini-2.5-flash",
+    apiKey: process.env.GEMINI_API_KEY,
     temperature: config?.temperature ?? 0.7,
-    maxTokens: config?.maxTokens ?? 2000,
+    maxOutputTokens: config?.maxTokens ?? 2000,
   })
 }

@@ -1,4 +1,4 @@
-import { grok_model } from "@/lib/langchain";
+import { createGeminiModel } from "@/lib/langchain";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { RunnableSequence } from "@langchain/core/runnables";
@@ -34,11 +34,15 @@ Analyze the draft carefully and return ONLY JSON in this format:
 
 const outputParser = new JsonOutputParser<FactCheckResult>();
 
-const factCheckerchain = RunnableSequence.from([
-  factCheckerprompt,
-  grok_model,
-  outputParser,
-]);
+const model = createGeminiModel({
+  temperature: 0.2,
+  maxTokens: 2000,
+})
+
+const factCheckerchain = factCheckerprompt
+  .pipe(model)
+  .pipe(outputParser)
+
 
 export async function factCheckerAgent(
   prompt: string,

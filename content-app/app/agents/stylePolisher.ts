@@ -1,5 +1,5 @@
 import { PolishedResult } from "../types";
-import { grok_model } from "@/lib/langchain";
+import { createGeminiModel } from "@/lib/langchain";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { RunnableSequence } from "@langchain/core/runnables";
@@ -34,12 +34,14 @@ Return ONLY the polished blog text in markdown format. Do not include JSON or me
 `)
 
 const outputParser = new StringOutputParser()
+const model = createGeminiModel({
+  temperature: 0.8,
+  maxTokens: 4000,
+})
 
-const stylePolisherChain = RunnableSequence.from([
-  stylePolisherPrompt,
-  grok_model,
-  outputParser,
-])
+const stylePolisherChain = stylePolisherPrompt
+  .pipe(model)
+  .pipe(outputParser)
 
 export async function stylePolisherAgent(
   draftContent: string,
