@@ -56,7 +56,7 @@ export async function factCheckerAgent(
       researchFindings: findingsFormatted,
       prd: prompt  // Original PRD for context
     })
-     console.log("✅ Fact checker completed");
+     console.log("Fact checker completed");
     console.log(`   - Passed: ${result.passed}`);
     console.log(`   - Issues found: ${result.issues?.length || 0}`);
 
@@ -68,7 +68,7 @@ export async function factCheckerAgent(
     }
 
   } catch (error) {
-    console.error("❌ Fact checker error:", error);
+    console.error("Fact checker error:", error);
     throw error;
   }
 }

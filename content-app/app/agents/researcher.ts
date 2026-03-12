@@ -51,12 +51,12 @@ const researchChain = RunnableSequence.from([
 
 export async function runResearcher(prompt: string): Promise<ResearchResult>{
   try{
-    console.log('🔍 Researcher agent starting (LangChain)...')
+    console.log(' Researcher agent starting (LangChain)...')
 
 
     const result = await researchChain.invoke({ prd: prompt })
 
-    console.log('✅ Researcher completed')
+    console.log(' Researcher completed')
     console.log(`   - Topics: ${result.topics.length}`)
     console.log(`   - Findings: ${result.findings.length}`)
     console.log(`   - Sources: ${result.sources.length}`)

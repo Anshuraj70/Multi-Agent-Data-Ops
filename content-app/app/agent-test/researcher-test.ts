@@ -23,11 +23,11 @@ Goals:
 - Seamless developer workflow integration
   `.trim()
 
-  console.log('🧪 Testing Researcher Agent\n')
+  console.log(' Testing Researcher Agent\n')
   console.log('='.repeat(60))
   console.log('PRD Preview:', samplePRD.substring(0, 100) + '...')
   console.log('='.repeat(60))
-  console.log('\n🚀 Running researcher...\n')
+  console.log('\n Running researcher...\n')
 
   try {
     const startTime = Date.now()
@@ -35,16 +35,16 @@ Goals:
     const duration = Date.now() - startTime
     
     console.log('\n' + '='.repeat(60))
-    console.log('✅ TEST PASSED')
+    console.log(' TEST PASSED')
     console.log('='.repeat(60))
-    console.log(`\n⏱️  Duration: ${duration}ms\n`)
+    console.log(`\n Duration: ${duration}ms\n`)
     
-    console.log('📋 Topics Found:')
+    console.log(' Topics Found:')
     result.topics.forEach((topic, i) => {
       console.log(`   ${i + 1}. ${topic}`)
     })
     
-    console.log('\n🔍 Findings:')
+    console.log(' Findings:')
     result.findings.forEach((finding, i) => {
       const preview = finding.length > 100 
         ? finding.substring(0, 100) + '...' 
@@ -53,13 +53,13 @@ Goals:
     })
     
     if (result.sources.length > 0) {
-      console.log('\n🔗 Sources:')
+      console.log(' Sources:')
       result.sources.forEach((source, i) => {
         console.log(`   ${i + 1}. ${source}`)
       })
     }
     
-    console.log('\n📊 Summary:')
+    console.log(' Summary:')
     console.log(`   - Topics: ${result.topics.length}`)
     console.log(`   - Findings: ${result.findings.length}`)
     console.log(`   - Sources: ${result.sources.length}`)
@@ -67,9 +67,9 @@ Goals:
     
   } catch (error) {
     console.log('\n' + '='.repeat(60))
-    console.log('❌ TEST FAILED')
+    console.log(' TEST FAILED')
     console.log('='.repeat(60))
-    console.error('\n💥 Error Details:')
+    console.error('\n Error Details:')
     console.error(error)
     
     if (error instanceof Error) {
